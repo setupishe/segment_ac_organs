@@ -1,6 +1,6 @@
 import os
 import random
-from typing import List
+from typing import List, Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
@@ -92,3 +92,10 @@ def vis_random_batch(data_root: str, num: int = 16, soft_tissue_window: bool = F
         lbl = load_npy(img2label(img_path))
 
         vis_one(img, lbl, soft_tissue_window)    
+
+def plot_hist_with_legend(bars_dict: Dict):
+    plt.bar(list(bars_dict.keys()), 
+        list(bars_dict.values()),
+             color=[custom_cmap(i) for i in bars_dict])
+    legend_handles = [Patch(color=custom_cmap(i), label=labels_dict[i]) for i in bars_dict]
+    plt.legend(handles=legend_handles, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
