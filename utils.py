@@ -45,6 +45,7 @@ custom_cmap = create_colormap_for_labels(labels_dict, cmap_name='tab20')
 
 def vis_one(image: np.array, 
             label: np.array, 
+            img_name: str,
             soft_tissue_window: bool = False, 
             colormap: LinearSegmentedColormap=custom_cmap):
 
@@ -52,16 +53,17 @@ def vis_one(image: np.array,
     
     # Image
     plt.subplot(1, 2, 1)
-    plt.title("Image")
+    plt.xlabel("Image")
     if soft_tissue_window:
         image = np.clip(image, -350, 400)
         image += 350
         image /= 750
     plt.imshow(image, cmap="gray")
+    plt.title(img_name)
     
     # Label
     plt.subplot(1, 2, 2)
-    plt.title("Label")
+    plt.xlabel("Label")
     
     # Create and apply the custom colormap
     label_colored = apply_colormap_to_label(label, colormap)
@@ -72,6 +74,7 @@ def vis_one(image: np.array,
     handles = [Patch(color=colormap(i), label=name) for i, name in enumerate(labels_dict.values())
                if i in labels_unique]
     plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+
 
     plt.show()
 
@@ -91,7 +94,7 @@ def vis_random_batch(data_root: str, num: int = 16, soft_tissue_window: bool = F
         img = load_npy(img_path)
         lbl = load_npy(img2label(img_path))
 
-        vis_one(img, lbl, soft_tissue_window)    
+        vis_one(img, lbl, item, soft_tissue_window)    
 
 def plot_hist_with_legend(bars_dict: Dict):
     plt.bar(list(bars_dict.keys()), 
@@ -99,3 +102,12 @@ def plot_hist_with_legend(bars_dict: Dict):
              color=[custom_cmap(i) for i in bars_dict])
     legend_handles = [Patch(color=custom_cmap(i), label=labels_dict[i]) for i in bars_dict]
     plt.legend(handles=legend_handles, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+
+def vis_one_slice(sample_name: str):
+    for i in range(1, 7):
+        img_name = sample_name + f'_slice{i}_img.npy'
+        img_path = os.path.join('data/default_dataset/images', img_name)
+        img = load_npy(img_path)
+        lbl = load_npy(img2label(img_path))
+
+        vis_one(img, lbl, img_name)
