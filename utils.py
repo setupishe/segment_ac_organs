@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.colors import LinearSegmentedColormap
 
+USED_CLASSES = [0, 1, 2, 3, 6, 7, 8, 9]
+
 def create_colormap_for_labels(label_names: List[str], cmap_name: str = 'tab20') -> LinearSegmentedColormap:
     """
     Creates a colormap with specific colors mapped to label indices from a given colormap.
@@ -57,7 +59,7 @@ def vis_one(image: np.array,
             soft_tissue_window: bool = False, 
             colormap: LinearSegmentedColormap=custom_cmap):
 
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(11, 5))
     
     # Image
     plt.subplot(1, 2, 1)
@@ -65,12 +67,16 @@ def vis_one(image: np.array,
     if soft_tissue_window:
         image = clip_normalise(image)
     plt.imshow(image, cmap="gray")
+    plt.xticks([])
+    plt.yticks([])
+    plt.colorbar(location='left', shrink=0.8)
     plt.title(img_name)
     
     # Label
     plt.subplot(1, 2, 2)
     plt.xlabel("Label")
-    
+    plt.xticks([])
+    plt.yticks([])
     # Create and apply the custom colormap
     label_colored = apply_colormap_to_label(label, colormap)
     plt.imshow(label_colored)
