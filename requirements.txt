@@ -4,4 +4,8 @@ numpy
 matplotlib
 torch
 torchvision
+torchinfo
 lightning
+opencv-python
+albumentations
+transformers
