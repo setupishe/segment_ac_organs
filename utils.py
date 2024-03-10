@@ -44,13 +44,16 @@ labels_dict = {
 
 custom_cmap = create_colormap_for_labels(labels_dict, cmap_name='tab20')
  
-def clip_normalise(image: np.ndarray, 
-                   min: int = -350,
-                   max: int = 400):
+def normalize(image: np.ndarray, 
+                   min_val: int | None = None,
+                   max_val: int | None = None):
     
-    image = np.clip(image, -350, 400)
-    image += 350
-    image /= 750
+    min_val = np.min(image) if min_val is None else min_val
+    max_val = np.max(image) if max_val is None else max_val
+    image = np.clip(image, min_val, max_val)
+
+    image -= min_val
+    image /= max_val - min_val
     return image
 
 def vis_one(image: np.array, 
@@ -65,7 +68,7 @@ def vis_one(image: np.array,
     plt.subplot(1, 2, 1)
     plt.xlabel("Image")
     if soft_tissue_window:
-        image = clip_normalise(image)
+        image = normalize(image, -350, 400)
     plt.imshow(image, cmap="gray")
     plt.xticks([])
     plt.yticks([])
