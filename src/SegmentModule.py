@@ -43,6 +43,9 @@ class SegmentModule(L.LightningModule):
                                         average="macro")
         self.loss_fn = dice_coef_loss
 
+    def on_train_start(self):
+        self.logger.log_hyperparams(params=self.config)
+
     def process_batch(self, batch, mode=None):
         inputs, labels = batch
         outputs = self(inputs)

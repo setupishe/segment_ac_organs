@@ -11,12 +11,14 @@ import albumentations as A
 from SegmentModule import SegmentModule
 from OrgansDataset import OrgansDataset
 from MlflowMaintenance import check_mlflow_server
-
+import datetime
 
 config_file = sys.argv[1]
 with open(os.path.join('../configs', config_file), 'r') as file:
     config = json.load(file)
 
+config_part = "_".join([f'{key}-{config[key]}' for key in config])
+run_name = f"Run_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{config_part}"
 model = SegmentModule(config)
 
 augs_path = os.path.join("../augs", config['augs'])
@@ -40,9 +42,10 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, nu
 val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=12)
 
 check_mlflow_server()
-
-mlf_logger = MLFlowLogger(experiment_name="organs_segmentation", tracking_uri="http://127.0.0.1:8081")
-
+print(run_name)
+mlf_logger = MLFlowLogger(experiment_name="organs_segmentation", 
+                          run_name=run_name,
+                          tracking_uri="http://127.0.0.1:8081")
 from lightning.pytorch import seed_everything
 seed_everything(config['seed'], workers=True)
 
@@ -51,7 +54,10 @@ seed_everything(config['seed'], workers=True)
 val_every_n_epochs = 1
 
 checkpoint_callback = ModelCheckpoint(
-        filename="../checkpointsorgans_segmentator_{epoch:02d}",
+        dirpath="../checkpoints",
+        filename=os.path.join("../checkpoints", 
+                              run_name,
+                              "organs_segmentator_{epoch:02d}"),
         every_n_epochs=config['save_period'],
         save_top_k=-1,
     )
