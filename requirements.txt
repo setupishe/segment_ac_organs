@@ -9,3 +9,5 @@ lightning
 opencv-python
 albumentations
 transformers
+wandb
+mlflow
