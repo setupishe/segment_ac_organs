@@ -12,11 +12,11 @@ import torch.nn.functional as F
 from torchmetrics.classification import MulticlassF1Score
 
 from UNet import UNet
-
+from OrgansUtils import *
 
 default_config_file = '../configs/default.json'
-with open(default_config_file, 'r') as file:
-    config = json.load(file)
+config = load_config(default_config_file)
+
 
 class TverskyLoss(nn.Module):
     def __init__(self, num_classes, alpha=0.5, beta=0.5, smooth=1e-6):

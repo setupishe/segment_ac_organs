@@ -1,0 +1,19 @@
+{
+    "batch_size": 16,
+    "architecture": "unet",
+    "loss": "dice",
+    "alpha": 0.7,
+    "beta": 0.3,
+    "learning_rate": 1e-3,
+    "used_classes": [0, 1, 2, 3, 6, 7, 8, 9],
+    "epochs": 50,
+    "save_period": 1, 
+    "seed": 42,
+    "img_size": 224,
+    "clip_min": -500,
+    "clip_max": 500,
+    "in_channels": 1,
+    "augs": "default.yml",
+    "dataset_path": "dataset_split"
+  }
+  

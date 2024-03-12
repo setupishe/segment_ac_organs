@@ -1,6 +1,7 @@
 import sys
 import os
-import json
+
+from OrgansUtils import *
 
 from torch.utils.data import DataLoader
 from lightning.pytorch.loggers import MLFlowLogger
@@ -14,18 +15,29 @@ from MlflowMaintenance import check_mlflow_server
 import datetime
 
 config_file = sys.argv[1]
-with open(os.path.join('../configs', config_file), 'r') as file:
-    config = json.load(file)
+default_config_file = '../configs/default.json'
 
-config_part = "_".join([f'{key}-{config[key]}' for key in config])
+
+    
+config = load_config(config_file)
+default_config = load_config(default_config_file)
+
+config_diff = {key: value for key, value in config.items() 
+               if default_config[key] != value}
+
+config_part = "_".join([f'{key}-{config[key]}' for key in config_diff])
+
 run_name = f"Run_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{config_part}"
-model = SegmentModule(config)
 
+print(run_name)
+raise Exception
 augs_path = os.path.join("../augs", config['augs'])
 augs = A.load(augs_path, data_format='yaml')
 
 dataset_path = os.path.join('../data', config['dataset_path'])
 batch_size = config['batch_size']
+
+model = SegmentModule(config)
 
 train_dataset = OrgansDataset(
     os.path.join(dataset_path, 'train'), 
@@ -47,13 +59,11 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, nu
 val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=12)
 
 check_mlflow_server()
-print(run_name)
 mlf_logger = MLFlowLogger(experiment_name="organs_segmentation", 
                           run_name=run_name,
                           tracking_uri="http://127.0.0.1:8081")
 from lightning.pytorch import seed_everything
 seed_everything(config['seed'], workers=True)
-
 
 
 val_every_n_epochs = 1

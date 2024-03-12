@@ -4,7 +4,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import numpy as np
 
-from utils import *
+from OrgansUtils import *
 
 class OrgansDataset(Dataset):
     def __init__(self,
