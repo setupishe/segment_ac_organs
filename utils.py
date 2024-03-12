@@ -56,16 +56,19 @@ def normalize(image: np.ndarray,
     image /= max_val - min_val
     return image
 
-def vis_one(image: np.array, 
-            label: np.array, 
+def vis_one(image: np.ndarray, 
+            label: np.ndarray, 
             img_name: str,
+            pred: np.ndarray | None = None,
             soft_tissue_window: bool = False, 
             colormap: LinearSegmentedColormap=custom_cmap):
-
-    plt.figure(figsize=(11, 5))
+    figsize = 11 if pred is not None else 16
+    plt.figure(figsize=(figsize, 5))
     
     # Image
-    plt.subplot(1, 2, 1)
+
+    num_subplots = 2 if pred is None else 3
+    plt.subplot(1, num_subplots, 1)
     plt.xlabel("Image")
     if soft_tissue_window:
         image = normalize(image, -350, 400)
@@ -76,13 +79,23 @@ def vis_one(image: np.array,
     plt.title(img_name)
     
     # Label
-    plt.subplot(1, 2, 2)
+    plt.subplot(1, num_subplots, 2)
     plt.xlabel("Label")
     plt.xticks([])
     plt.yticks([])
     # Create and apply the custom colormap
     label_colored = apply_colormap_to_label(label, colormap)
     plt.imshow(label_colored)
+
+    if pred is not None:
+        # pred
+        plt.subplot(1, num_subplots, 3)
+        plt.xlabel("Pred")
+        plt.xticks([])
+        plt.yticks([])
+        # Create and apply the custom colormap
+        label_colored = apply_colormap_to_label(pred, colormap)
+        plt.imshow(label_colored)
 
     # Create legend
     labels_unique = np.unique(label)
