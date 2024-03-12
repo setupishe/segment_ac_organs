@@ -29,8 +29,6 @@ config_part = "_".join([f'{key}-{config[key]}' for key in config_diff])
 
 run_name = f"Run_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{config_part}"
 
-print(run_name)
-raise Exception
 augs_path = os.path.join("../augs", config['augs'])
 augs = A.load(augs_path, data_format='yaml')
 
