@@ -31,11 +31,16 @@ train_dataset = OrgansDataset(
     os.path.join(dataset_path, 'train'), 
     img_size=config['img_size'],
     used_classes=config['used_classes'],
-    augs=augs)
+    augs=augs,
+    clip_max=config['clip_max'],
+    clip_min=config['clip_min'],
+    )
 val_dataset = OrgansDataset(
     os.path.join(dataset_path, 'val'),
     img_size=config['img_size'],
     used_classes=config['used_classes'],
+    clip_max=config['clip_max'],
+    clip_min=config['clip_min'],
     )
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)

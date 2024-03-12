@@ -18,19 +18,46 @@ default_config_file = '../configs/default.json'
 with open(default_config_file, 'r') as file:
     config = json.load(file)
 
+class TverskyLoss(nn.Module):
+    def __init__(self, num_classes, alpha=0.5, beta=0.5, smooth=1e-6):
+        super(TverskyLoss, self).__init__()
+        self.num_classes = num_classes
+        self.alpha = alpha
+        self.beta = beta
+        self.smooth = smooth
 
-def dice_coef_loss(predictions, ground_truths, num_classes=2, dims=(1, 2), smooth=1e-8):
-    """Smooth Dice coefficient."""
-    ground_truth_oh = F.one_hot(ground_truths, num_classes=num_classes)
-    prediction_norm = F.softmax(predictions, dim=1).permute(0, 2, 3, 1)
-    intersection = (prediction_norm * ground_truth_oh).sum(dim=dims)
-    summation = prediction_norm.sum(dim=dims) + ground_truth_oh.sum(dim=dims)
-    dice = (2.0 * intersection + smooth) / (summation + smooth)
+    def forward(self, predictions, ground_truths):
+        ground_truth_oh = F.one_hot(ground_truths, num_classes=self.num_classes).float()
+        predictions = F.softmax(predictions, dim=1).permute(0, 3, 1, 2)
 
-    dice_mean = dice.mean()
+        TP = (predictions * ground_truth_oh).sum(dim=(2, 3))
+        FP = (predictions * (1 - ground_truth_oh)).sum(dim=(2, 3))
+        FN = ((1 - predictions) * ground_truth_oh).sum(dim=(2, 3))
 
-    return 1.0 - dice_mean
+        Tversky = (TP + self.smooth) / (TP + self.alpha * FP + self.beta * FN + self.smooth)
+        Tversky_loss = 1 - Tversky.mean()
 
+        return Tversky_loss
+
+
+class DiceLoss(nn.Module):
+    def __init__(self, num_classes, smooth=1e-6):
+        super(DiceLoss, self).__init__()
+        self.num_classes = num_classes
+        self.smooth = smooth
+
+    def forward(self, predictions, ground_truths):
+        ground_truth_oh = F.one_hot(ground_truths, num_classes=self.num_classes).float()
+        predictions = F.softmax(predictions, dim=1)
+        
+        predictions = predictions.permute(0, 2, 3, 1)  
+        
+        intersection = (predictions * ground_truth_oh).sum(dim=(1, 2))
+        summation = predictions.sum(dim=(1, 2)) + ground_truth_oh.sum(dim=(1, 2))
+        dice_score = (2.0 * intersection + self.smooth) / (summation + self.smooth)
+        
+        return 1.0 - dice_score.mean()
+    
 class SegmentModule(L.LightningModule):
     def __init__(self,  config=config):
         super().__init__()
@@ -41,8 +68,13 @@ class SegmentModule(L.LightningModule):
             
         self.metric_fn = MulticlassF1Score(num_classes=len(self.used_classes), 
                                         average="macro")
-        self.loss_fn = dice_coef_loss
-
+        if config['loss'] == 'dice':
+            self.loss_fn = DiceLoss(len(self.used_classes))
+        elif config['loss'] == 'tversky':
+            self.loss_fn = TverskyLoss(len(self.used_classes),
+                                       alpha=config['alpha'],
+                                       beta=config['beta'],
+                                       )
     def on_train_start(self):
         self.logger.log_hyperparams(params=self.config)
 
@@ -50,7 +82,7 @@ class SegmentModule(L.LightningModule):
         inputs, labels = batch
         outputs = self(inputs)
 
-        loss = self.loss_fn(outputs, labels, len(self.used_classes))
+        loss = self.loss_fn(outputs, labels)
         preds = F.softmax(outputs, dim=1)
         metric = self.metric_fn(preds, labels)
         if mode is not None:
