@@ -6,6 +6,14 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.colors import LinearSegmentedColormap
 
+
+import cv2
+import torch
+import torch.nn.functional as F
+from torchvision import transforms as T
+from utils import *
+import albumentations as A
+
 USED_CLASSES = [0, 1, 2, 3, 6, 7, 8, 9]
 
 def create_colormap_for_labels(label_names: List[str], cmap_name: str = 'tab20') -> LinearSegmentedColormap:
@@ -139,3 +147,28 @@ def vis_one_slice(sample_name: str):
         lbl = load_npy(img2label(img_path))
 
         vis_one(img, lbl, img_name)
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+def vis_predicts(model, dataset, n_samples, class_mapping, reverse_class_mapping):
+
+    indices = range(len(dataset))
+    indices = random.sample(indices, n_samples)
+    with torch.no_grad():
+        model.eval()
+        for i in indices:
+            image_path = dataset.images[i]
+            image = load_npy(image_path)
+            label = load_npy(img2label(image_path))
+            label = class_mapping[label.astype(int)]
+            label = reverse_class_mapping[label.astype(int)]
+        
+            image_tensor, _ = dataset[i]
+            image_tensor = image_tensor.to(device)
+            outputs = model(image_tensor.unsqueeze(0))
+            outputs = F.softmax(outputs, dim=1)
+            outputs = torch.argmax(outputs, dim=1).permute(0, 1, 2).squeeze(0)
+            outputs = outputs.cpu().detach().numpy()
+            outputs = reverse_class_mapping[outputs]
+            outputs = cv2.resize(outputs, (label.shape[1], label.shape[0]), interpolation=cv2.INTER_NEAREST)
+            vis_one(image, label, 'test', pred=outputs)
