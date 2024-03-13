@@ -22,6 +22,10 @@ def load_config(config_path):
 
 USED_CLASSES = [0, 1, 2, 3, 6, 7, 8, 9]
 
+loss_weights = np.array([0.64946566, 0.82554302, 0.89841441, 1.40984576, 1.46257621,
+       0.41346061, 0.57417984, 0.76047975, 0.85401002, 1.55762833,
+       1.59439639])
+
 def create_colormap_for_labels(label_names: List[str], cmap_name: str = 'tab20') -> LinearSegmentedColormap:
     """
     Creates a colormap with specific colors mapped to label indices from a given colormap.
@@ -162,7 +166,7 @@ def vis_random_batch(data_root: str, num: int = 16, soft_tissue_window: bool = F
         img = load_npy(img_path)
         lbl = load_npy(img2label(img_path))
 
-        vis_one(img, lbl, item, soft_tissue_window)    
+        vis_one(img, lbl, item, soft_tissue_window=soft_tissue_window)    
 
 def plot_hist_with_legend(bars_dict: Dict):
     plt.bar(list(bars_dict.keys()), 

@@ -14,8 +14,9 @@
     "clip_max": null,
     "in_channels": 1,
     "augs": "default.yml",
-    "dataset_path": "dataset_split",
-    "scheduler": null
+    "dataset_path": "default_split_by_sample_ids",
+    "scheduler": null,
+    "loss_weights": null
 
   }
   

@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torchmetrics.classification import MulticlassF1Score
 
 from UNet import UNet
+from UNet_conv_transpose import UNet_conv_transpose
 from OrgansUtils import *
 
 default_config_file = '../configs/default.json'
@@ -80,9 +81,9 @@ class DiceScore(nn.Module):
         summation = predictions.sum(dim=(1, 2)) + ground_truth_oh.sum(dim=(1, 2))
         weights = weights.to(predictions.device)
         weighted_dice_score = (2.0 * intersection + self.smooth) / (summation + self.smooth)
-        weighted_dice_score = weighted_dice_score.sum(dim=0)
+        weighted_dice_score = weighted_dice_score.mean(dim=0)
         weighted_dice_score *= weights
-        dice_score = weighted_dice_score.sum()
+        dice_score = weighted_dice_score.mean()
         
         return dice_score
 
@@ -103,6 +104,9 @@ class SegmentModule(L.LightningModule):
         self.used_classes = config['used_classes']
         if config['architecture'] == 'unet':
             self.model = UNet(config['in_channels'], len(self.used_classes))
+        elif config['architecture'] == 'unet_conv_transpose':
+            self.model = UNet_conv_transpose(config['in_channels'], len(self.used_classes))
+
             
         self.metric_fn = MulticlassF1Score(num_classes=len(self.used_classes), 
                                         average="macro")
@@ -123,6 +127,18 @@ class SegmentModule(L.LightningModule):
                                        alpha=config['alpha'],
                                        beta=config['beta'],
                                        )
+        elif config['loss'] == 'CE':
+            if config["loss_weights"]:
+                weights = torch.tensor(loss_weights[np.array(self.used_classes)], 
+                                      dtype=torch.float32)
+                
+                weights = weights.to('cuda')
+            else:
+                weights = None
+            self.loss_fn = lambda x, y: F.cross_entropy(x, 
+                                                        y, 
+                                                        weight=weights,
+                                                        reduce=False).mean()
     def on_train_start(self):
         self.logger.log_hyperparams(params=self.config)
 
@@ -171,6 +187,6 @@ class SegmentModule(L.LightningModule):
         if scheduler is not None:
             if 'exponential' in scheduler:
                 gamma = float(scheduler.split('_')[-1])
-                return_dict['scheduler'] = ExponentialLR(optimizer, gamma=gamma)
-        scheduler =self.config['scheduler']
+                return_dict['lr_scheduler'] = ExponentialLR(optimizer, gamma=gamma)
+        scheduler = self.config['scheduler']
         return return_dict
