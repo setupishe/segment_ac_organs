@@ -15,7 +15,7 @@ from UNet import UNet
 from OrgansUtils import *
 
 default_config_file = '../configs/default.json'
-config = load_config(default_config_file)
+default_config = load_config(default_config_file)
 
 
 class TverskyLoss(nn.Module):
@@ -28,11 +28,11 @@ class TverskyLoss(nn.Module):
 
     def forward(self, predictions, ground_truths):
         ground_truth_oh = F.one_hot(ground_truths, num_classes=self.num_classes).float()
-        predictions = F.softmax(predictions, dim=1).permute(0, 3, 1, 2)
+        predictions = F.softmax(predictions, dim=1).permute(0, 2, 3, 1)
 
-        TP = (predictions * ground_truth_oh).sum(dim=(2, 3))
-        FP = (predictions * (1 - ground_truth_oh)).sum(dim=(2, 3))
-        FN = ((1 - predictions) * ground_truth_oh).sum(dim=(2, 3))
+        TP = (predictions * ground_truth_oh).sum(dim=(1, 2))
+        FP = (predictions * (1 - ground_truth_oh)).sum(dim=(1, 2))
+        FN = ((1 - predictions) * ground_truth_oh).sum(dim=(1, 2))
 
         Tversky = (TP + self.smooth) / (TP + self.alpha * FP + self.beta * FN + self.smooth)
         Tversky_loss = 1 - Tversky.mean()
@@ -59,7 +59,7 @@ class DiceLoss(nn.Module):
         return 1.0 - dice_score.mean()
     
 class SegmentModule(L.LightningModule):
-    def __init__(self,  config=config):
+    def __init__(self,  config=default_config):
         super().__init__()
         self.config = config
         self.used_classes = config['used_classes']
