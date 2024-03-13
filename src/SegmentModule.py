@@ -40,11 +40,26 @@ class TverskyLoss(nn.Module):
         return Tversky_loss
 
 
-class DiceLoss(nn.Module):
-    def __init__(self, num_classes, smooth=1e-6):
-        super(DiceLoss, self).__init__()
+class DiceScore(nn.Module):
+    def __init__(self, num_classes, smooth=1e-5, weights=None):
+        super(DiceScore, self).__init__()
         self.num_classes = num_classes
         self.smooth = smooth
+        if weights is not None:
+            if isinstance(weights, str) and weights == "auto":
+                self.weights = weights
+            elif isinstance(weights, (list, torch.Tensor)):
+                weights_tensor = torch.tensor(weights, dtype=torch.float32) if isinstance(weights, list) else weights.float()
+                self.weights = self._invert_weights(weights_tensor)
+            else:
+                raise ValueError("Weights must be 'auto', a list, or a torch.Tensor.")
+        else:
+            self.weights = torch.ones(num_classes) / num_classes  
+
+    def _invert_weights(self, weights):
+        weights = 1.0 / (weights + self.smooth)  
+        weights = weights / weights.sum()  
+        return weights
 
     def forward(self, predictions, ground_truths):
         ground_truth_oh = F.one_hot(ground_truths, num_classes=self.num_classes).float()
@@ -52,11 +67,34 @@ class DiceLoss(nn.Module):
         
         predictions = predictions.permute(0, 2, 3, 1)  
         
+        if isinstance(self.weights, str) and self.weights == "auto":
+            label_counts = ground_truth_oh.sum(dim=(0, 1, 2))
+            weights = label_counts / (label_counts.sum() + self.smooth)  
+            weights = self._invert_weights(weights)
+        else:
+            weights = self.weights
+        
+        if weights.sum() <= 1 - self.smooth or weights.sum() >= 1 + self.smooth:
+            raise Exception(f'weights sum should be 1, got {weights.sum()}')
         intersection = (predictions * ground_truth_oh).sum(dim=(1, 2))
         summation = predictions.sum(dim=(1, 2)) + ground_truth_oh.sum(dim=(1, 2))
-        dice_score = (2.0 * intersection + self.smooth) / (summation + self.smooth)
+        weights = weights.to(predictions.device)
+        weighted_dice_score = (2.0 * intersection + self.smooth) / (summation + self.smooth)
+        weighted_dice_score = weighted_dice_score.sum(dim=0)
+        weighted_dice_score *= weights
+        dice_score = weighted_dice_score.sum()
         
-        return 1.0 - dice_score.mean()
+        return dice_score
+
+class DiceLoss(nn.Module):
+    def __init__(self, num_classes, smooth=1e-6, weights=None):
+        super(DiceLoss, self).__init__()
+        self.dice_score = DiceScore(num_classes, smooth, weights)
+
+    def forward(self, predictions, ground_truths):
+        dice_score = self.dice_score(predictions, ground_truths)
+        dice_loss = 1 - dice_score
+        return dice_loss
     
 class SegmentModule(L.LightningModule):
     def __init__(self,  config=default_config):
@@ -68,8 +106,18 @@ class SegmentModule(L.LightningModule):
             
         self.metric_fn = MulticlassF1Score(num_classes=len(self.used_classes), 
                                         average="macro")
-        if config['loss'] == 'dice':
-            self.loss_fn = DiceLoss(len(self.used_classes))
+        if 'dice' in config['loss']:
+            match config['loss'].replace('dice', '').replace('_', ''):
+                case 'auto':
+                    weights = 'auto'
+                case 'precalculated':
+                    weights = config['class_weights']
+                case '':
+                    weights = None
+                case _:
+                    incorrect_loss = config['loss']
+                    raise ValueError(f'dice loss should be "dice", "dice_auto" or "dice_precalculated", got "{incorrect_loss}"')
+            self.loss_fn = DiceLoss(len(self.used_classes), weights=weights)
         elif config['loss'] == 'tversky':
             self.loss_fn = TverskyLoss(len(self.used_classes),
                                        alpha=config['alpha'],
@@ -117,7 +165,12 @@ class SegmentModule(L.LightningModule):
                                 lr=self.config["learning_rate"],
                                 # weight_decay=self.config["weight_decay"],
                                 )
+        return_dict = {"optimizer": optimizer}
         # scheduler = ExponentialLR(optimizer, gamma=0.9)
-        return {"optimizer": optimizer, 
-                # "lr_scheduler": scheduler, 
-                }
+        scheduler =self.config['scheduler']
+        if scheduler is not None:
+            if 'exponential' in scheduler:
+                gamma = float(scheduler.split('_')[-1])
+                return_dict['scheduler'] = ExponentialLR(optimizer, gamma=gamma)
+        scheduler =self.config['scheduler']
+        return return_dict

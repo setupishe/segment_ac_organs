@@ -198,6 +198,7 @@ def vis_predicts(model, dataset, n_samples, class_mapping, reverse_class_mapping
             image_tensor, _ = dataset[i]
             image_tensor = image_tensor.to(device)
             outputs = model(image_tensor.unsqueeze(0))
+            
             outputs = F.softmax(outputs, dim=1)
             outputs = torch.argmax(outputs, dim=1).permute(0, 1, 2).squeeze(0)
             outputs = outputs.cpu().detach().numpy()
