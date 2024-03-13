@@ -21,7 +21,10 @@ default_config_file = '../configs/default.json'
     
 config = load_config(config_file)
 default_config = load_config(default_config_file)
-
+for key in default_config:
+    if key not in config:
+        config[key] = default_config[key]
+        
 config_diff = {key: value for key, value in config.items() 
                if default_config[key] != value}
 
