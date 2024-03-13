@@ -29,7 +29,14 @@ def create_colormap_for_labels(label_names: List[str], cmap_name: str = 'tab20')
     cmap = plt.get_cmap(cmap_name)  # Get the colormap
     # Create a color for each label based on its relative position in the label set
     colors = [cmap(i / len(label_names)) for i in range(len(label_names))]
+    colors[0] = (0, 0, 0, 1)
     return LinearSegmentedColormap.from_list("custom_cmap", colors, N=len(label_names))
+
+def make_background_transparent(image: np.ndarray) -> np.ndarray:
+    background_mask = np.all(image[..., :3] == 0, axis=-1)  # Check if all color channels are 0
+    image[..., -1] = np.where(background_mask, 0, 1)  # Set alpha based on the background_mask
+    return image
+
 
 def apply_colormap_to_label(label: np.ndarray, colormap: LinearSegmentedColormap) -> np.ndarray:
     """
@@ -70,18 +77,21 @@ def normalize(image: np.ndarray,
     image /= max_val - min_val
     return image
 
+
 def vis_one(image: np.ndarray, 
             label: np.ndarray, 
             img_name: str,
             pred: np.ndarray | None = None,
+            colormap: LinearSegmentedColormap=custom_cmap,
             soft_tissue_window: bool = False, 
-            colormap: LinearSegmentedColormap=custom_cmap):
+            overlay: bool = False):
     figsize = 11 if pred is not None else 16
     plt.figure(figsize=(figsize, 5))
     
-    # Image
-
     num_subplots = 2 if pred is None else 3
+    alpha = 0.5 if overlay else 1  # Transparency level
+
+    # Image
     plt.subplot(1, num_subplots, 1)
     plt.xlabel("Image")
     if soft_tissue_window:
@@ -97,26 +107,42 @@ def vis_one(image: np.ndarray,
     plt.xlabel("Label")
     plt.xticks([])
     plt.yticks([])
-    # Create and apply the custom colormap
+    # Apply and overlay colormap if enabled
     label_colored = apply_colormap_to_label(label, colormap)
-    plt.imshow(label_colored)
+    if overlay:
+        plt.imshow(image, cmap="gray")
+        label_colored = make_background_transparent(label_colored)
+        plt.imshow(label_colored, alpha=1)
+    else:
+        plt.imshow(label_colored)
 
     if pred is not None:
-        # pred
+        # Pred
         plt.subplot(1, num_subplots, 3)
         plt.xlabel("Pred")
         plt.xticks([])
         plt.yticks([])
-        # Create and apply the custom colormap
-        label_colored = apply_colormap_to_label(pred, colormap)
-        plt.imshow(label_colored)
+        # Apply and overlay colormap if enabled
+        pred_colored = apply_colormap_to_label(pred, colormap)
+        if overlay:
+            plt.imshow(image, cmap="gray")
+            pred_colored = make_background_transparent(pred_colored)
+            plt.imshow(pred_colored, alpha=1)
+        else:
+            pred_colored = apply_colormap_to_label(pred, colormap)
+            plt.imshow(pred_colored)
 
     # Create legend
     labels_unique = np.unique(label)
-    handles = [Patch(color=colormap(i), label=name) for i, name in enumerate(labels_dict.values())
-               if i in labels_unique]
-    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    if pred is not None:
+        labels_unique = np.union1d(labels_unique, np.unique(pred))
 
+    if overlay:
+        labels_unique = labels_unique[1:]
+
+    handles = [Patch(color=colormap(i), label=name) for i, name in enumerate(labels_dict.values())
+        if i in labels_unique]
+    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 
     plt.show()
 
@@ -156,7 +182,7 @@ def vis_one_slice(sample_name: str):
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def vis_predicts(model, dataset, n_samples, class_mapping, reverse_class_mapping):
+def vis_predicts(model, dataset, n_samples, class_mapping, reverse_class_mapping, overlay=False):
 
     indices = range(len(dataset))
     indices = random.sample(indices, n_samples)
@@ -177,4 +203,4 @@ def vis_predicts(model, dataset, n_samples, class_mapping, reverse_class_mapping
             outputs = outputs.cpu().detach().numpy()
             outputs = reverse_class_mapping[outputs]
             outputs = cv2.resize(outputs, (label.shape[1], label.shape[0]), interpolation=cv2.INTER_NEAREST)
-            vis_one(image, label, 'test', pred=outputs)
+            vis_one(image, label, 'test', pred=outputs, overlay=overlay)
