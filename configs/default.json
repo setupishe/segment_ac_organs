@@ -16,7 +16,7 @@
     "augs": "default.yml",
     "dataset_path": "default_split_by_sample_ids",
     "optimiser": "Adam",
-    "scheduler": null,
+    "scheduler": "reduce_on_plateau",
     "loss_weights": null,
     "weight_decay": 0
 
