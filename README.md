@@ -23,7 +23,7 @@ Computer vision project focusing on abdominal cavity organs segmentation.
     model = SegmentModule.load_from_checkpoint('path/to/checkpoint.ckpt')
     ```
 
-3. Assuming `images` is np.array in provided dataset format, run:
+3. Assuming `image` is np.array in provided dataset format, run:
     ```
     pred = inference_npy(model, image)
     ```
