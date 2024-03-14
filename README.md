@@ -20,7 +20,7 @@ Computer vision project focusing on abdominal cavity organs segmentation.
 
 2. Initialise model:
     ```
-    model = SegmentModule.load_from_checkpoint('path/to/checkpoint.ckpt)
+    model = SegmentModule.load_from_checkpoint('path/to/checkpoint.ckpt')
     ```
 
 3. Assuming `images` is np.array in provided dataset format, run:
