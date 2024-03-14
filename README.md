@@ -27,7 +27,7 @@ Computer vision project focusing on abdominal cavity organs segmentation.
     ```
     pred = inference_npy(model, image)
     ```
-    `pred`  tensor contains labels in default labels format.
+    `pred`  contains labels in default labels format.
 ### Training
 4. To reproduce training, run training script with default training parameters:
     ```
