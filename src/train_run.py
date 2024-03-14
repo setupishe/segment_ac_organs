@@ -3,7 +3,7 @@ import os
 
 from OrgansUtils import *
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from lightning.pytorch.loggers import MLFlowLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 import lightning as L
@@ -56,8 +56,10 @@ val_dataset = OrgansDataset(
     clip_min=config['clip_min'],
     )
 
+
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=12)
+
+val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=12, shuffle=True)
 
 check_mlflow_server()
 mlf_logger = MLFlowLogger(experiment_name="organs_segmentation", 

@@ -1,4 +1,4 @@
 {
-  "loss": "CE",
-  "architecture": "unet_conv_transpose"
+    "scheduler": "reduce_on_plateau",
+    "epochs": 100
 }

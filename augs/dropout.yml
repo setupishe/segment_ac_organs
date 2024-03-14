@@ -1,0 +1,38 @@
+__version__: 1.4.1
+transform:
+  __class_fullname__: Compose
+  additional_targets: {}
+  bbox_params: null
+  is_check_shapes: true
+  keypoint_params: null
+  p: 1.0
+  transforms:
+  - __class_fullname__: HorizontalFlip
+    always_apply: false
+    p: 0.5
+  - __class_fullname__: CoarseDropout
+    always_apply: false
+    p: 0.2
+  - __class_fullname__: VerticalFlip
+    always_apply: false
+    p: 0.5
+  - __class_fullname__: ShiftScaleRotate
+    always_apply: false
+    border_mode: 4
+    interpolation: 1
+    mask_value: null
+    p: 0.5
+    rotate_limit:
+    - -0.15
+    - 0.15
+    rotate_method: largest_box
+    scale_limit:
+    - -0.12
+    - 0.1200000000000001
+    shift_limit_x:
+    - -0.12
+    - 0.12
+    shift_limit_y:
+    - -0.12
+    - 0.12
+    value: null

@@ -1,7 +1,7 @@
 import lightning as L
 import torchvision.models.convnext as convnext
 from torch import nn
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau
 import torch
 from statistics import mean
 import torchmetrics
@@ -18,6 +18,24 @@ from OrgansUtils import *
 default_config_file = '../configs/default.json'
 default_config = load_config(default_config_file)
 
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        BCE_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)
+        F_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
+
+        if self.reduction == 'mean':
+            return F_loss.mean()
+        elif self.reduction == 'sum':
+            return F_loss.sum()
+        else:  # 'none'
+            return F_loss
 
 class TverskyLoss(nn.Module):
     def __init__(self, num_classes, alpha=0.5, beta=0.5, smooth=1e-6):
@@ -67,7 +85,6 @@ class DiceScore(nn.Module):
         predictions = F.softmax(predictions, dim=1)
         
         predictions = predictions.permute(0, 2, 3, 1)  
-        
         if isinstance(self.weights, str) and self.weights == "auto":
             label_counts = ground_truth_oh.sum(dim=(0, 1, 2))
             weights = label_counts / (label_counts.sum() + self.smooth)  
@@ -81,8 +98,8 @@ class DiceScore(nn.Module):
         summation = predictions.sum(dim=(1, 2)) + ground_truth_oh.sum(dim=(1, 2))
         weights = weights.to(predictions.device)
         weighted_dice_score = (2.0 * intersection + self.smooth) / (summation + self.smooth)
-        weighted_dice_score = weighted_dice_score.mean(dim=0)
-        weighted_dice_score *= weights
+        # weighted_dice_score = weighted_dice_score
+        # weighted_dice_score *= weights
         dice_score = weighted_dice_score.mean()
         
         return dice_score
@@ -107,10 +124,16 @@ class SegmentModule(L.LightningModule):
         elif config['architecture'] == 'unet_conv_transpose':
             self.model = UNet_conv_transpose(config['in_channels'], len(self.used_classes))
 
-            
-        self.metric_fn = MulticlassF1Score(num_classes=len(self.used_classes), 
-                                        average="macro")
-        if 'dice' in config['loss']:
+
+        self.dice = torchmetrics.Dice(num_classes=len(self.used_classes), 
+                                      average="macro",
+                                      ignore_index=0)
+        self.dice_default = torchmetrics.Dice(num_classes=len(self.used_classes))
+        if config['loss'] == "dice_ce":
+            dice_loss = DiceLoss(len(self.used_classes))
+            ce_loss = nn.CrossEntropyLoss(reduce=False)
+            self.loss_fn = lambda x, y: dice_loss(x, y) + ce_loss(x, y).mean()
+        elif 'dice' in config['loss']:
             match config['loss'].replace('dice', '').replace('_', ''):
                 case 'auto':
                     weights = 'auto'
@@ -121,7 +144,7 @@ class SegmentModule(L.LightningModule):
                 case _:
                     incorrect_loss = config['loss']
                     raise ValueError(f'dice loss should be "dice", "dice_auto" or "dice_precalculated", got "{incorrect_loss}"')
-            self.loss_fn = DiceLoss(len(self.used_classes), weights=weights)
+            self.loss_fn = DiceLoss(len(self.used_classes))
         elif config['loss'] == 'tversky':
             self.loss_fn = TverskyLoss(len(self.used_classes),
                                        alpha=config['alpha'],
@@ -135,10 +158,10 @@ class SegmentModule(L.LightningModule):
                 weights = weights.to('cuda')
             else:
                 weights = None
-            self.loss_fn = lambda x, y: F.cross_entropy(x, 
-                                                        y, 
-                                                        weight=weights,
-                                                        reduce=False).mean()
+            self.loss_fn = nn.CrossEntropyLoss(reduce=False)
+        elif config['loss'] == "focal":
+            self.loss_fn = FocalLoss(alpha=config.get('focal_alpha', 0.25), 
+                                     gamma=config.get('focal_gamma', 2.0))
     def on_train_start(self):
         self.logger.log_hyperparams(params=self.config)
 
@@ -147,11 +170,15 @@ class SegmentModule(L.LightningModule):
         outputs = self(inputs)
 
         loss = self.loss_fn(outputs, labels)
+        if self.config['loss'] == 'CE':
+            loss = loss.mean()
         preds = F.softmax(outputs, dim=1)
-        metric = self.metric_fn(preds, labels)
+        dice = self.dice(outputs, labels)
+        dice_default = self.dice_default(outputs, labels)
         if mode is not None:
             self.log(f'{mode}_loss', loss, on_epoch=True, logger=True)
-            self.log(f'{mode}_metric', metric, on_epoch=True, logger=True) #TODO: проверить усреднение
+            self.log(f'{mode}_dice', dice, on_epoch=True, logger=True, on_step=False) #TODO: проверить усреднение
+            self.log(f'{mode}_dice_default', dice_default, on_epoch=True, logger=True, on_step=False) #TODO: проверить усреднение
 
         return loss, preds
     
@@ -177,16 +204,27 @@ class SegmentModule(L.LightningModule):
         return preds
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), 
+        if self.config['optimiser'] == 'Adam':
+            optimizer = torch.optim.AdamW(self.parameters(), 
                                 lr=self.config["learning_rate"],
                                 # weight_decay=self.config["weight_decay"],
                                 )
+        elif self.config['optimiser'] == 'AdamW':
+            optimizer = torch.optim.AdamW(self.parameters(), 
+                                lr=self.config["learning_rate"],
+                                weight_decay=self.config["weight_decay"],
+                                )
         return_dict = {"optimizer": optimizer}
-        # scheduler = ExponentialLR(optimizer, gamma=0.9)
-        scheduler =self.config['scheduler']
+        scheduler = self.config['scheduler']
         if scheduler is not None:
             if 'exponential' in scheduler:
                 gamma = float(scheduler.split('_')[-1])
                 return_dict['lr_scheduler'] = ExponentialLR(optimizer, gamma=gamma)
-        scheduler = self.config['scheduler']
+            elif 'reduce_on_plateau':
+                return_dict['lr_scheduler'] = ReduceLROnPlateau(optimizer,
+                                                                factor=0.3,
+                                                                patience=4,
+                                                                mode='max'
+                                                                )
+                return_dict["monitor"] = "val_dice"
         return return_dict

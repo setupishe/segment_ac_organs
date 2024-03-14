@@ -208,4 +208,30 @@ def vis_predicts(model, dataset, n_samples, class_mapping, reverse_class_mapping
             outputs = outputs.cpu().detach().numpy()
             outputs = reverse_class_mapping[outputs]
             outputs = cv2.resize(outputs, (label.shape[1], label.shape[0]), interpolation=cv2.INTER_NEAREST)
-            vis_one(image, label, 'test', pred=outputs, overlay=overlay)
+            vis_one(image, label, '', pred=outputs, overlay=overlay)
+
+from albumentations.pytorch import ToTensorV2
+
+def preprocess_for_model(image_npy):
+    image = normalize(image_npy)
+    image = np.expand_dims(image, 2)
+    transforms = A.Compose([A.Resize(224, 224, always_apply=True),
+                        ToTensorV2(always_apply=True)])
+    image = transforms(image=image)['image']
+    return image
+
+def postprocess_after_model(output_tensor, shape):
+    outputs = F.softmax(output_tensor, dim=1)
+    outputs = torch.argmax(outputs, dim=1).permute(0, 1, 2).squeeze(0)
+    outputs = outputs.cpu().detach().numpy()
+    outputs = np.array(USED_CLASSES)[outputs]
+    outputs = cv2.resize(outputs, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+    return outputs
+
+def inference_npy(model, image_npy):
+    with torch.no_grad():
+        model.eval()
+
+    image_tensor = preprocess_for_model(image_npy).to(device).unsqueeze(0)
+    return postprocess_after_model(model(image_tensor), image_npy.shape)
+
