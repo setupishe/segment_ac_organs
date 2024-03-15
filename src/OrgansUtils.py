@@ -178,7 +178,7 @@ def plot_hist_with_legend(bars_dict: Dict):
 def vis_one_slice(sample_name: str):
     for i in range(1, 7):
         img_name = sample_name + f'_slice{i}_img.npy'
-        img_path = os.path.join('data/default_dataset/images', img_name)
+        img_path = os.path.join('../data/default_dataset/images', img_name)
         img = load_npy(img_path)
         lbl = load_npy(img2label(img_path))
 
@@ -186,15 +186,25 @@ def vis_one_slice(sample_name: str):
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def vis_predicts(model, dataset, n_samples, class_mapping, reverse_class_mapping, overlay=False):
+def vis_predicts(model, 
+                 dataset, 
+                 n_samples, 
+                 class_mapping, 
+                 reverse_class_mapping, 
+                 overlay=False,
+                 random_sampling=True):
 
     indices = range(len(dataset))
-    indices = random.sample(indices, n_samples)
+    if random_sampling:
+        indices = random.sample(indices, n_samples)
+    else:
+        indices = [x for i, x, in enumerate(indices) if i%10 == 0][:n_samples]
     with torch.no_grad():
         model.eval()
         for i in indices:
             image_path = dataset.images[i]
             image = load_npy(image_path)
+            image = normalize(image, -350, 400)
             label = load_npy(img2label(image_path))
             label = class_mapping[label.astype(int)]
             label = reverse_class_mapping[label.astype(int)]

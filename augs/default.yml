@@ -7,12 +7,7 @@ transform:
   keypoint_params: null
   p: 1.0
   transforms:
-  - __class_fullname__: HorizontalFlip
-    always_apply: false
-    p: 0.5
-  - __class_fullname__: VerticalFlip
-    always_apply: false
-    p: 0.5
+
   - __class_fullname__: ShiftScaleRotate
     always_apply: false
     border_mode: 4
